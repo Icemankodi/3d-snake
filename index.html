@@ -286,10 +286,35 @@
     function removeTail(){ const seg = snake.pop(); scene.remove(seg.group); }
 
     // Food & power-ups
-    function spawnFood(){ if (food) { scene.remove(food.mesh); food = null; } const occ = new Set(snake.map(s=>posKey(s.x,s.z))); if (power) occ.add(posKey(power.x,power.z)); let x,z; do { x = Math.floor(Math.random()*GRID_SIZE); z = Math.floor(Math.random()*GRID_SIZE); } while(occ.has(posKey(x,z))); const foodMat = new THREE.MeshStandardMaterial({ color: randomFoodColor(), metalness:0.1, roughness:0.2, emissive:0x22000a, emissiveIntensity:0.7 }); const orb = new THREE.Mesh(foodGeo, foodMat); const {x:wx,z:wz}=gridToWorld(x,z); orb.position.set(wx,0,wz); orb.castShadow=orb.receiveShadow=true; scene.add(orb); food = { x, z, mesh: orb }; }
+    function spawnFood(){
+      if (food) {
+        scene.remove(food.mesh);
+        // dispose material to avoid GPU memory leaks
+        food.mesh.material.dispose();
+        food = null;
+      }
+      const occ = new Set(snake.map(s=>posKey(s.x,s.z)));
+      if (power) occ.add(posKey(power.x,power.z));
+      let x,z; do {
+        x = Math.floor(Math.random()*GRID_SIZE); z = Math.floor(Math.random()*GRID_SIZE);
+      } while(occ.has(posKey(x,z)));
+      const foodMat = new THREE.MeshStandardMaterial({ color: randomFoodColor(), metalness:0.1, roughness:0.2, emissive:0x22000a, emissiveIntensity:0.7 });
+      const orb = new THREE.Mesh(foodGeo, foodMat);
+      const {x:wx,z:wz}=gridToWorld(x,z);
+      orb.position.set(wx,0,wz);
+      orb.castShadow=orb.receiveShadow=true;
+      scene.add(orb);
+      food = { x, z, mesh: orb };
+    }
     function maybeSpawnPower(){ if (power) return; if (Math.random() > CONFIG.POWERUP_RATE) return; const types=['slow','ghost','x2']; const type=types[Math.floor(Math.random()*types.length)]; const occ=new Set(snake.map(s=>posKey(s.x,s.z))); if (food) occ.add(posKey(food.x,food.z)); let x,z; do { x=Math.floor(Math.random()*GRID_SIZE); z=Math.floor(Math.random()*GRID_SIZE); } while(occ.has(posKey(x,z))); const gem=new THREE.Mesh(new THREE.IcosahedronGeometry(0.5,1), pMat[type]); const {x:wx,z:wz}=gridToWorld(x,z); gem.position.set(wx,0,wz); gem.castShadow=gem.receiveShadow=true; scene.add(gem); power={ type, x, z, mesh: gem, until:0 }; }
     function applyPower(type){ SFX.power(); const until = performance.now() + CONFIG.POWERUP_DURATION_MS; if (type==='slow') active.slow=until; if (type==='ghost') active.ghost=until; if (type==='x2') active.x2=until; updateBuffs(); }
-    function clearPower(){ if (!power) return; scene.remove(power.mesh); power=null; }
+    function clearPower(){
+      if (!power) return;
+      scene.remove(power.mesh);
+      // dispose geometry to prevent buildup when spawning new power-ups
+      power.mesh.geometry.dispose();
+      power=null;
+    }
 
     function updateBuffs(){ const parts=[]; for (const k of Object.keys(active)){ const left=Math.max(0, Math.ceil((active[k]-performance.now())/1000)); if (left>0) parts.push(`<span class="tag">${{slow:'Slow-mo',ghost:'Ghost',x2:'×2 Points'}[k]} ${left}s</span>`);} if (parts.length){ buffsEl.style.display='block'; buffsEl.innerHTML=parts.join(' ');} else { buffsEl.style.display='none'; buffsEl.textContent=''; } }
     function setStatus(text){ statusEl.textContent = text }
